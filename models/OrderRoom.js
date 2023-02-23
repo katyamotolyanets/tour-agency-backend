@@ -28,7 +28,9 @@ const OrderRoom = db.define('orderRoom', {
         references: {
             model: Order,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     end: {
         type: DataTypes.DATE,
@@ -40,7 +42,9 @@ const OrderRoom = db.define('orderRoom', {
         references: {
             model: TourFeature,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     room_id : {
         type: DataTypes.BIGINT,
@@ -48,7 +52,9 @@ const OrderRoom = db.define('orderRoom', {
         references: {
             model: RoomType,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     start: {
         type: DataTypes.DATE,
@@ -60,7 +66,9 @@ const OrderRoom = db.define('orderRoom', {
         references: {
             model: User,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
 },
 {

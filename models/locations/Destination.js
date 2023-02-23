@@ -13,10 +13,12 @@ const Destination = db.define('destination', {
         created: {
             type: DataTypes.DATE,
             allowNull: false,
+            defaultValue: DataTypes.NOW
         },
         modified: {
             type: DataTypes.DATE,
             allowNull: false,
+            defaultValue: DataTypes.NOW
         },
         name: {
             type: DataTypes.STRING(256),
@@ -25,7 +27,8 @@ const Destination = db.define('destination', {
         },
         location: {
             type: DataTypes.GEOGRAPHY,
-            allowNull: true
+            allowNull: true,
+            defaultValue: null
         },
         country_id: {
             type: DataTypes.BIGINT,
@@ -42,12 +45,13 @@ const Destination = db.define('destination', {
         },
         image_id: {
             type: DataTypes.BIGINT,
-            allowNull: false,
+            allowNull: true,
             unique: true,
             references: {
                 model: Image,
                 key: "id"
-            }
+            },
+            defaultValue: null
         }
     },
     {

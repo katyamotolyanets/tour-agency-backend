@@ -12,10 +12,12 @@ const RoomType = db.define('room_type', {
     created: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     modified: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     name: {
         type: DataTypes.STRING(32),
@@ -49,7 +51,9 @@ const RoomType = db.define('room_type', {
         references: {
             model: Hotel,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     count_rooms: {
         type: DataTypes.SMALLINT,

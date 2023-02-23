@@ -2,18 +2,26 @@ const express = require('express')
 const Order = require("../models/Order");
 const User = require("../models/User");
 const ArrivalDate = require("../models/ArrivalDate");
+const OrderRoom = require("../models/OrderRoom");
 const {check} = require("express-validator");
 const router = express.Router()
 
 const {
     getOrders,
     createOrder,
-    getOrderPrice
+    getOrderPrice,
+    deleteOrder,
+    updateOrder
 } = require('../controllers/api-order-controller')
 
+User.hasMany(Order, {foreignKey: 'user_id', onDelete: 'cascade', hooks: true});
 Order.belongsTo(User, {foreignKey: 'user_id'});
+
+ArrivalDate.hasMany(Order, {foreignKey: 'arrival_date_id', onDelete: 'cascade', hooks: true});
 Order.belongsTo(ArrivalDate, {foreignKey: 'arrival_date_id'});
-ArrivalDate.hasMany(Order, {foreignKey: 'arrival_date_id'});
+
+Order.hasMany(OrderRoom, {foreignKey: 'order_id', onDelete: 'cascade', hooks: true});
+OrderRoom.belongsTo(Order, {foreignKey: 'order_id'})
 
 router.get('/api/orders', getOrders);
 
@@ -44,7 +52,9 @@ router.post('/api/order/price/', [
         .notEmpty()
         .withMessage('Count of tickets is required')
         .isNumeric()
-], getOrderPrice)
+], getOrderPrice);
 
+router.delete('/api/orders/:id', deleteOrder);
+router.patch('/api/orders/:id', updateOrder);
 
 module.exports = router

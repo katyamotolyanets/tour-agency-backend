@@ -23,7 +23,9 @@ const ArrivalDate = db.define('arrival_date', {
             references: {
                 model: Tour,
                 key: "id"
-            }
+            },
+            onUpdate: 'cascade',
+            onDelete: 'cascade',
         },
     },
     {

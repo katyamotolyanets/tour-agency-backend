@@ -24,8 +24,8 @@ const getUsers = (req, res) => {
 
 const getUserInfoByToken = async (req, res) => {
     try {
-        const accessToken = getTokenFromAuthorizationHeader(req.headers.authorization);
-        let user = getUserFromToken(accessToken);
+        const accessToken = await getTokenFromAuthorizationHeader(req.headers.authorization);
+        let {user} = await jwt.decode(accessToken, JWT_ACCESS_SECRET_KEY)
         User.findOne({
             attributes: [
                 'id',
@@ -38,7 +38,7 @@ const getUserInfoByToken = async (req, res) => {
             },
             include: {
                 model: Order,
-                attributes: ['id'],
+                attributes: ['id', 'count_tickets', 'status', 'price'],
                 include: {
                     model: ArrivalDate,
                     attributes: ['id', 'date'],
@@ -47,7 +47,7 @@ const getUserInfoByToken = async (req, res) => {
                         attributes: ['id', 'title', 'price', 'tour_type', 'description'],
                         include: {
                             model: TourFeature,
-                            attributes: ['id', 'days', '_order'],
+                            attributes: ['id', 'days'],
                             include: [
                                 {
                                     model: Destination,
@@ -66,32 +66,33 @@ const getUserInfoByToken = async (req, res) => {
                     }
                 }
             }
-        }).then(({dataValues}) => {
+        }).then(async ({dataValues}) => {
+            let response = dataValues;
             if (dataValues?.orders?.length > 0) {
-                let destinations = [];
-                let totalDays = 0;
-                let min_price = 0;
-                const tourPrice = dataValues.orders.arrival_date.tour.dataValues.price;
-                dataValues.orders?.arrival_date.tour.features
-                    .sort((a, b) => a.dataValues._order - b.dataValues._order)
-                    .forEach(({dataValues}) => {
-                        totalDays += dataValues.days
-                        destinations.push(dataValues.destination.dataValues.name)
-                        if (dataValues?.hotel) {
-                            let min = dataValues.hotel.dataValues.room_types
-                                .sort((a, b) => Number(a.dataValues.cost_per_day) - Number(b.dataValues.cost_per_day)).slice(0, 1)
-                            min_price += (Number(min[0].dataValues.cost_per_day) * dataValues.days)
-                        }
-                    })
+                let tours = dataValues.orders.map(order => {
+                    let destinations = [];
+                    let totalDays = 0;
+                    let min_price = 0;
+                    const tourPrice = order.arrival_date.tour.dataValues.price;
+                    order?.arrival_date.tour.features
+                        .sort((a, b) => Number(a.dataValues.id) - Number(b.dataValues.id))
+                        .forEach(({dataValues}) => {
+                            totalDays += dataValues.days
+                            destinations.push(dataValues.destination.dataValues.name)
+                            if (dataValues?.hotel) {
+                                let min = dataValues.hotel.dataValues.room_types
+                                    .sort((a, b) => Number(a.dataValues.cost_per_day) - Number(b.dataValues.cost_per_day)).slice(0, 1)
+                                min_price += (Number(min[0].dataValues.cost_per_day) * dataValues.days)
+                            }
+                        })
+                    order.arrival_date.tour.min_price = min_price + Number(tourPrice);
+                    order.arrival_date.tour.days = totalDays;
+                    return order
+                })
+                    response = await Promise.all([...tours])
 
-                dataValues.orders.arrival_date.dataValues.tour.dataValues.destinations = destinations;
-                dataValues.orders.arrival_date.dataValues.tour.dataValues.days = totalDays;
-                dataValues.orders.arrival_date.dataValues.tour.dataValues.min_price = min_price + Number(tourPrice);
-
-                delete dataValues.orders.arrival_date.dataValues.tour.dataValues.features
-                delete dataValues.orders.arrival_date.dataValues.tour.dataValues.price
             }
-            res.status(200).json(dataValues)
+            res.status(200).json(response)
         })
     } catch (error) {
         res.status(404).json({message: 'Cannot find user with that id :('})
@@ -103,9 +104,9 @@ const registerUser = async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             let errorMessages = [];
-            errors.errors.forEach(({param, msg}) => {
+            errors.errors.forEach(({msg}) => {
                 let result = {};
-                result[param] = msg;
+                result["detail"] = msg;
                 errorMessages.push(result);
             })
             return res.status(400).json(errorMessages)
@@ -122,7 +123,7 @@ const registerUser = async (req, res) => {
             const hashPassword = bcrypt.hashSync(password.toString(), 3);
             const user = await User.create({email, password: hashPassword});
             await user.save();
-            return res.status(200).json({id: user.id, email: user.email, password: user.password})
+            return res.status(200).json({id: user.id, email: user.email, password: user.password});
         }
     } catch (error) {
         res.status(404).json({message: 'Cannot register user!'})
@@ -139,13 +140,13 @@ const loginUser = async (req, res) => {
         })
         const isValidPassword = bcrypt.compareSync(password, user.password);
         if (!user || !isValidPassword) {
-            res.status(400).json({detail: 'No active account found with the given credentials'})
+            res.status(400).json({detail: 'User with that data not found'})
         }
         const token = jwt.sign({user: user}, JWT_ACCESS_SECRET_KEY, {expiresIn: ACCESS_TOKEN_LIFE_TIME});
         const refreshToken = jwt.sign({user: user}, JWT_REFRESH_SECRET_KEY, {expiresIn: REFRESH_TOKEN_LIFE_TIME})
         return res.status(200).json({access: token, refresh: refreshToken})
     } catch (error) {
-        res.status(400).json({message: 'Login error'})
+        res.status(400).json({message: 'Email does not match'})
     }
 }
 

@@ -30,7 +30,9 @@ const Order = db.define('order', {
         references: {
             model: ArrivalDate,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     user_id: {
         type: DataTypes.BIGINT,
@@ -39,7 +41,9 @@ const Order = db.define('order', {
         references: {
             model: User,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     status: {
         type: DataTypes.STRING(15),

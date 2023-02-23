@@ -14,10 +14,12 @@ const TourFeature = db.define('feature', {
     created: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     modified: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     title: {
         type: DataTypes.STRING(256),
@@ -30,7 +32,7 @@ const TourFeature = db.define('feature', {
     },
     food: {
         type: DataTypes.ENUM(10),
-        allowNull: false,
+        allowNull: true,
     },
     destination_id: {
         type: DataTypes.BIGINT,
@@ -38,7 +40,9 @@ const TourFeature = db.define('feature', {
         references: {
             model: Destination,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     hotel_id: {
         type: DataTypes.BIGINT,
@@ -54,7 +58,9 @@ const TourFeature = db.define('feature', {
         references: {
             model: Tour,
             key: "id"
-        }
+        },
+        onUpdate: 'cascade',
+        onDelete: 'cascade',
     },
     days: {
         type: DataTypes.SMALLINT,
@@ -63,6 +69,7 @@ const TourFeature = db.define('feature', {
     _order: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        defaultValue: 1,
     },
 },
 {

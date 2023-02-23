@@ -11,10 +11,10 @@ const Hotel = require("../models/Hotel");
 const RoomType = require("../models/RoomType");
 const jwt = require("jsonwebtoken");
 const OrderRoom = require("../models/OrderRoom");
+const {checkAdminPermission} = require("../utils/utils");
 const {checkFieldsValidation} = require("../utils/utils");
 
 const {JWT_ACCESS_SECRET_KEY} = process.env;
-
 
 // add admin token
 const getOrders = (req, res) => {
@@ -39,7 +39,7 @@ const getOrders = (req, res) => {
                     attributes: ['id', 'title', 'price', 'tour_type', 'description'],
                     include: {
                         model: TourFeature,
-                        attributes: ['id', 'days', '_order'],
+                        attributes: ['id', 'days'],
                         include: [
                             {
                                 model: Destination,
@@ -67,7 +67,7 @@ const getOrders = (req, res) => {
                 const tourPrice = dataValues.arrival_date.tour.dataValues.price;
                 dataValues.user = dataValues.user.dataValues.email
                 dataValues.arrival_date.tour.features
-                    .sort((a, b) => a.dataValues._order - b.dataValues._order)
+                    .sort((a, b) => Number(a.dataValues.id) - Number(b.dataValues.id))
                     .forEach(({dataValues}) => {
                         totalDays += dataValues.days
                         destinations.push(dataValues.destination.dataValues.name)
@@ -89,45 +89,48 @@ const getOrders = (req, res) => {
         })
 }
 
-const bookRooms = (order, orderRooms, user, transaction, res) => {
-    try {
-        let {arrival_date, count_tickets} = order?.dataValues;
-        let start = arrival_date?.dataValues.date;
-        let orderedRooms = [];
-        let {features} = arrival_date.dataValues.tour.dataValues;
-        features.forEach(({id, days}) => {
-            let end = new Date();
-            end.setDate(start.getDate() + days);
-            let newOrderRoom = [];
-            orderRooms.forEach(room => {
-                if (room.feature === Number(id)) {
-                    newOrderRoom.push(room);
-                }
-            })
-            if (newOrderRoom.length !== 1) {
-                transaction.rollback();
-                throw new Error('Each hotel must contain only one room');
+const bookRooms = async (order, orderRooms, user, transaction) => {
+    let {arrival_date, count_tickets} = order?.dataValues;
+    let start = arrival_date?.dataValues.date;
+    let orderedRooms = [];
+    let {features} = arrival_date.dataValues.tour.dataValues;
+    features.forEach(({id, days}) => {
+        let end = new Date();
+        end.setDate(start.getDate() + days);
+        let newOrderRoom = [];
+        orderRooms.forEach(room => {
+            console.log(room)
+            if (room.feature == id) {
+                newOrderRoom.push(room);
             }
-            let newOrderRoomId = newOrderRoom[0].room;
-            orderedRooms.push({
-                start: start,
-                end: end,
-                room_id: newOrderRoomId,
-                user_id: user,
-                feature_id: id,
-                order_id: order.id
-            })
-            start = end;
+
         })
-        if (orderedRooms.length === orderRooms.length) {
-            orderedRooms.forEach(async room => {
-                checkRoomAvailability(arrival_date.dataValues.id, count_tickets, transaction, res)
-                let orderRoom = await OrderRoom.create(room, {transaction: transaction});
-                await orderRoom.save();
-            })
+        console.log(newOrderRoom)
+
+        if (newOrderRoom.length !== 1) {
+            transaction.rollback();
+            throw new Error('Each hotel must contain only one room');
         }
-    } catch (err) {
-        transaction.rollback();
+        let newOrderRoomId = newOrderRoom[0].room;
+        orderedRooms.push({
+            start: start,
+            end: end,
+            room_id: newOrderRoomId,
+            user_id: user,
+            feature_id: id,
+            order_id: order.id
+        })
+        start = end;
+    })
+    for (const room of orderedRooms) {
+        try {
+            await checkCountTicketsAvailability(arrival_date.dataValues.id, count_tickets)
+        } catch (e) {
+            throw e
+        }
+        OrderRoom.create(room, {transaction: transaction}).then(orderRoom => {
+            orderRoom.save();
+        });
     }
 }
 
@@ -155,19 +158,11 @@ const countAvailable = (arrival_date) => {
     })
 }
 
-const checkRoomAvailability = (arrivalDate, count_tickets, transaction, res) => {
-    try {
-        countAvailable(arrivalDate).then(count => {
-            if (count && (count - count_tickets) < 0) {
-                throw new Error('There are no available rooms');
-            }
-        }).catch(() => {
-            res.status(404).json({detail: 'There are no available rooms'});
-        })
-    } catch (error) {
-        transaction.rollback();
+const checkCountTicketsAvailability = async (arrivalDate, count_tickets) => {
+    const count = await countAvailable(arrivalDate);
+    if (Number.isInteger(count) && (count - count_tickets) < 0) {
+        throw new Error("The date has no available places")
     }
-
 }
 
 const createOrder = async (req, res) => {
@@ -241,9 +236,14 @@ const createOrder = async (req, res) => {
                                     }
                                 },
                                 transaction: transaction
-                            }).then((response) => {
-                                bookRooms(response, ordered_rooms, user.id, transaction, res)
-                                /*let destinations = [];
+                            }).then(async (response) => {
+                                try {
+                                    await bookRooms(response, ordered_rooms, user.id, transaction)
+                                } catch (e) {
+                                    res.status(400).send(e.message)
+                                    return;
+                                }
+                                let destinations = [];
                                 let totalDays = 0;
                                 let min_price = 0;
                                 const tourPrice = response?.dataValues.arrival_date.dataValues.tour.dataValues.price;
@@ -266,8 +266,8 @@ const createOrder = async (req, res) => {
 
                                 delete response.dataValues.arrival_date.dataValues.tour.dataValues.features;
                                 delete response.dataValues.arrival_date.dataValues.tour.dataValues.price;
-                                res.status(200).json(response);*/
-                            })
+                                res.status(200).json(response);
+                            }).then(() => transaction.commit())
                         });
                     }
                 })
@@ -312,9 +312,45 @@ const getOrderPrice = async (req, res) => {
     });
 }
 
+const deleteOrder = async (req, res) => {
+    try {
+        const isAdmin = await checkAdminPermission(req.headers.authorization);
+        if (!isAdmin)
+            res.status(401).json({detail: 'You do not have such permissions'});
+        const {id} = req.params;
+        const order = await Order.findOne({
+            where: { id: id },
+        })
+        await order.destroy();
+        res.status(204).json({});
+    } catch (error) {
+        res.status(400).json({detail: 'Cannot delete order'});
+    }
+}
+
+const updateOrder = async (req, res) => {
+    try {
+        const isAdmin = await checkAdminPermission(req.headers.authorization);
+        if (!isAdmin)
+            res.status(401).json({detail: 'You do not have such permissions'});
+        const {id} = req.params;
+        const {status} = req.body;
+        const order = await Order.findOne({
+            where: { id: id },
+        });
+        await order.update({status: status});
+        res.status(200).json(order);
+    } catch (error) {
+        res.status(400).json({detail: 'Cannot update order'});
+    }
+}
+
+
 
 module.exports = {
     getOrders,
     createOrder,
-    getOrderPrice
+    getOrderPrice,
+    deleteOrder,
+    updateOrder
 }

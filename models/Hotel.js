@@ -12,10 +12,12 @@ const Hotel = db.define('hotel', {
     created: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     modified: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     street: {
         type: DataTypes.STRING(256),

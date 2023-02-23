@@ -22,7 +22,7 @@ const getOrderPrice = (arrival_date, count_tickets, order_rooms) => {
     return price
 }
 
-const checkFieldsValidation = async (req, res) => {
+const checkFieldsValidation = async (req) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         let errorMessages = [];
@@ -31,13 +31,29 @@ const checkFieldsValidation = async (req, res) => {
             result[param] = msg;
             errorMessages.push(result);
         })
-        return res.status(400).json(errorMessages)
+        return errorMessages
     }
+}
+
+const checkAdminPermission = async (header) => {
+    const accessToken = await getTokenFromAuthorizationHeader(header);
+    const {user} = await jwt.decode(accessToken, JWT_ACCESS_SECRET_KEY);
+    if (!user.is_manager)
+        return false
+    return true
+}
+
+const getImagesArray = (images) => {
+    return images.map(({image}) => {
+        return 'http://localhost:5000/media/' + image
+    })
 }
 
 module.exports = {
     getUserFromToken,
     getTokenFromAuthorizationHeader,
     getOrderPrice,
-    checkFieldsValidation
+    checkFieldsValidation,
+    checkAdminPermission,
+    getImagesArray
 }

@@ -11,6 +11,8 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use('/media', express.static(process.cwd() + '/media'))
+
 
 app.get('/', (req, res) => res.send('ROOT'));
 

@@ -11,10 +11,12 @@ const Tour = db.define('tour', {
     created: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     modified: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW
     },
     title: {
         type: DataTypes.STRING(256),

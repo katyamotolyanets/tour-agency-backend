@@ -35,7 +35,7 @@ router.post('/api/users/', [
 
 router.get('/api/users/my/', getUserInfoByToken);
 
-router.get('/api/users/has_admin_access/', checkAdminPermissions);
+router.post('/api/users/is-admin/', checkAdminPermissions);
 
 router.post('/login/', [
     check('email')
